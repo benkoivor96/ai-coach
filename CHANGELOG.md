@@ -1,5 +1,20 @@
 # FitCoach AI — Changelog
 
+## v1.3.0 — 31. 5. 2025.
+
+### Novo
+- **Baseline i cilj na vježbama** — forma za dodavanje vježbe sad ima polje "Početno stanje" (baseline) uz cilj; coach vidi oba u kontekstu
+- **Edit vježbe** — ✏️ gumb na svakoj vježbi u biblioteci, otvara pre-fillanu formu za izmjenu
+- **Napredak → Dnevnik** — klik na datum u historiji logova otvara modal s cijelim treningom tog dana (sve vježbe)
+- **Napredak stat boxovi** — prikazuju se čim je vježba odabrana, čak i bez logova (Početak / Zadnji / Cilj umjesto PR)
+
+### Navigacijska logika
+- Vježbe → klik na karticu → Napredak (filtriran na tu vježbu)
+- Napredak → klik na datum → modal s cijelim danom
+- Dnevnik → klik na vježbu → modal s historijom te vježbe
+
+---
+
 ## v1.2.0 — 31. 5. 2025.
 
 ### Novo
