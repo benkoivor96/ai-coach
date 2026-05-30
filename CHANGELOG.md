@@ -1,5 +1,16 @@
 # FitCoach AI — Changelog
 
+## v1.2.0 — 31. 5. 2025.
+
+### Novo
+- **Modal za vježbu u Dnevniku** — klik na naziv vježbe otvara sheet s kompletnom historijom logova (datum + kg/sets×reps)
+- **Auto-login iz env varijabli** — app se automatski loginira ako su `VITE_SB_URL`, `VITE_SB_KEY`, `VITE_AI_KEY` postavljeni u Vercel project settingsima
+
+### Popravljeno
+- Modal se otvara iznad tab navigacije (ne skriva se iza nje)
+
+---
+
 ## v1.1.0 — 30. 5. 2025.
 
 ### Novo
