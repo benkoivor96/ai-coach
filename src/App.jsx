@@ -233,6 +233,7 @@ export default function App() {
   // napredak
   const [selectedExercise, setSelectedExercise] = useState(null);
   const [napredakRange, setNapredakRange] = useState(30);
+  const [showExForm, setShowExForm] = useState(false);
 
   // forms
   const [exForm, setExForm] = useState({ name: "", muscle_group: "Ostalo", goal: "", notes: "" });
@@ -715,23 +716,33 @@ PRAVILA:
           <div style={styles.scrollWrap}>
             {saveMsg && <div style={styles.saveToast}>{saveMsg}</div>}
 
-            {/* Add exercise */}
-            <div style={styles.card}>
-              <h3 style={styles.cardTitle}>➕ Nova vježba</h3>
-              <input style={styles.fi} placeholder="Naziv vježbe (npr. Bench Press)" value={exForm.name}
-                onChange={e => setExForm({ ...exForm, name: e.target.value })} />
-              <select style={styles.fi} value={exForm.muscle_group}
-                onChange={e => setExForm({ ...exForm, muscle_group: e.target.value })}>
-                {["Prsa", "Leđa", "Noge", "Ramena", "Ruke", "Core", "Ostalo"].map(g => (
-                  <option key={g} value={g}>{g}</option>
-                ))}
-              </select>
-              <input style={styles.fi} placeholder="Cilj (npr. 120kg 4×8)" value={exForm.goal}
-                onChange={e => setExForm({ ...exForm, goal: e.target.value })} />
-              <input style={styles.fi} placeholder="Napomena (opcionalno)" value={exForm.notes}
-                onChange={e => setExForm({ ...exForm, notes: e.target.value })} />
-              <button style={styles.logBtn} onClick={addExercise}>Dodaj u biblioteku</button>
-            </div>
+            {/* Add exercise — collapsible */}
+            <button
+              style={{ ...styles.addExBtn, ...(showExForm ? styles.addExBtnActive : {}) }}
+              onClick={() => setShowExForm(v => !v)}
+            >
+              <span>{showExForm ? "✕ Zatvori" : "＋ Nova vježba"}</span>
+            </button>
+
+            {showExForm && (
+              <div style={styles.card}>
+                <input style={styles.fi} placeholder="Naziv vježbe (npr. Bench Press)" value={exForm.name}
+                  onChange={e => setExForm({ ...exForm, name: e.target.value })} />
+                <select style={styles.fi} value={exForm.muscle_group}
+                  onChange={e => setExForm({ ...exForm, muscle_group: e.target.value })}>
+                  {["Prsa", "Leđa", "Noge", "Ramena", "Ruke", "Core", "Ostalo"].map(g => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </select>
+                <input style={styles.fi} placeholder="Cilj (npr. 120kg 4×8)" value={exForm.goal}
+                  onChange={e => setExForm({ ...exForm, goal: e.target.value })} />
+                <input style={styles.fi} placeholder="Napomena (opcionalno)" value={exForm.notes}
+                  onChange={e => setExForm({ ...exForm, notes: e.target.value })} />
+                <button style={styles.logBtn} onClick={() => { addExercise(); setShowExForm(false); }}>
+                  Dodaj u biblioteku
+                </button>
+              </div>
+            )}
 
             {/* Exercise library */}
             {exercises.length > 0 && (
@@ -812,11 +823,9 @@ PRAVILA:
           </div>
         )}
 
-        {/* ── TAB: NAPREDAK ───────────────────────────────────────────────── */}
-        {tab === "napredak" && (
+        {/* ── TAB: DNEVNIK ────────────────────────────────────────────────── */}
+        {tab === "dnevnik" && (
           <div style={styles.scrollWrap}>
-
-            {/* Dnevnik treninga */}
             <div style={styles.card}>
               <h3 style={styles.cardTitle}>📅 Dnevnik treninga</h3>
               {sortedDays.length === 0 && (
@@ -840,6 +849,12 @@ PRAVILA:
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* ── TAB: NAPREDAK ───────────────────────────────────────────────── */}
+        {tab === "napredak" && (
+          <div style={styles.scrollWrap}>
 
             {/* Exercise progress */}
             <div style={styles.card}>
@@ -1000,6 +1015,7 @@ PRAVILA:
         {[
           { id: "chat", icon: "💬", label: "Coach" },
           { id: "vjezbe", icon: "🏋️", label: "Vježbe" },
+          { id: "dnevnik", icon: "📅", label: "Dnevnik" },
           { id: "napredak", icon: "📈", label: "Napredak" },
         ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
@@ -1128,6 +1144,10 @@ const styles = {
   rangeBtn: { background: "none", border: `1px solid ${C.border}`, color: C.sub, borderRadius: 6, padding: "4px 8px", fontSize: 11, fontWeight: 600, cursor: "pointer" },
   rangeBtnActive: { background: C.accent, border: `1px solid ${C.accent}`, color: "#fff" },
   weightSummary: { color: C.sub, fontSize: 13, margin: "8px 0 0", textAlign: "center" },
+
+  // ADD EXERCISE BUTTON
+  addExBtn: { width: "100%", background: C.surface, border: `1px dashed ${C.border}`, borderRadius: 12, padding: "12px", color: C.sub, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", textAlign: "center", transition: "border-color 0.15s" },
+  addExBtnActive: { borderColor: C.accent, color: C.accent, borderStyle: "solid" },
 
   // DNEVNIK
   sessionBlock: { marginBottom: 16, paddingBottom: 12, borderBottom: `1px solid ${C.border}` },

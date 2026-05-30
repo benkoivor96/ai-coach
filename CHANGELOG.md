@@ -1,0 +1,26 @@
+# FitCoach AI — Changelog
+
+## v1.1.0 — 30. 5. 2025.
+
+### Novo
+- **Dnevnik tab** — zaseban tab s pregledom treninga grupiranim po danima (zadnjih 21 dan)
+
+### Poboljšano
+- **Nova vježba** — forma je sada skrivena iza "+ Nova vježba" gumba, otvara se na klik i zatvara nakon dodavanja
+
+## v1.0.0 — 30. 5. 2025. (Initial Release)
+
+### Novo
+- **Coach tab** — AI fitness coach na hrvatskom, pamti kontekst treninga i daje personalizirane savjete
+- **Vježbe tab** — biblioteka vježbi s mišićnom skupinom, ciljem i zadnjim logom
+- **Napredak tab** — dnevnik treninga grupiran po danima, progress chart po vježbi, trend kilaze
+- **Brzi log** — unos treninga i kilaze direktno iz Vježbe taba
+- **AI tool use** — coach automatski sprema workout i kilazu iz chata (bez regexova)
+- **Stats bar** — kilaza, treninzi ovaj tjedan, zadnji trening
+- **Setup screen** — unos Supabase i Anthropic API ključeva, čuvaju se u localStorage
+
+### Tehničko
+- Model: `claude-sonnet-4-6`
+- Baza: `exercises`, `workout_logs`, `weight_logs`, `chat_history`
+- Deploy: Vercel — [ai-coach-kappa-liart.vercel.app](https://ai-coach-kappa-liart.vercel.app)
+- Stack: React 18, Vite 5, Recharts, custom Supabase REST klient
