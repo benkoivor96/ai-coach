@@ -212,7 +212,21 @@ function SetupScreen({ onSave }) {
 // ─── MAIN APP ────────────────────────────────────────────────────────────────
 export default function App() {
   const [creds, setCreds] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("fitcoach_creds") || "null"); } catch { return null; }
+    try {
+      const saved = JSON.parse(localStorage.getItem("fitcoach_creds") || "null");
+      if (saved?.sbUrl && saved?.sbKey && saved?.aiKey) return saved;
+    } catch {}
+    // Fall back to Vercel env vars (set in Vercel project settings)
+    const envCreds = {
+      sbUrl: import.meta.env.VITE_SB_URL,
+      sbKey: import.meta.env.VITE_SB_KEY,
+      aiKey: import.meta.env.VITE_AI_KEY,
+    };
+    if (envCreds.sbUrl && envCreds.sbKey && envCreds.aiKey) {
+      localStorage.setItem("fitcoach_creds", JSON.stringify(envCreds));
+      return envCreds;
+    }
+    return null;
   });
   const [tab, setTab] = useState("chat");
   const [sb, setSb] = useState(null);
@@ -234,6 +248,7 @@ export default function App() {
   const [selectedExercise, setSelectedExercise] = useState(null);
   const [napredakRange, setNapredakRange] = useState(30);
   const [showExForm, setShowExForm] = useState(false);
+  const [dnevnikModal, setDnevnikModal] = useState(null); // { name, logs }
 
   // forms
   const [exForm, setExForm] = useState({ name: "", muscle_group: "Ostalo", goal: "", notes: "" });
@@ -839,7 +854,20 @@ PRAVILA:
                   </div>
                   {workoutsByDay[date].map((l, i) => (
                     <div key={i} style={styles.sessionRow}>
-                      <span style={styles.sessionEx}>{l.exercises?.name || "?"}</span>
+                      <span
+                        style={{ ...styles.sessionEx, cursor: "pointer", textDecorationLine: "underline", textDecorationColor: C.border }}
+                        onClick={() => {
+                          const name = l.exercises?.name;
+                          const ex = exercises.find(e => e.name === name);
+                          if (!ex) return;
+                          const logs = workoutLogs
+                            .filter(wl => wl.exercise_id === ex.id)
+                            .sort((a, b) => new Date(b.logged_at) - new Date(a.logged_at));
+                          setDnevnikModal({ name, logs });
+                        }}
+                      >
+                        {l.exercises?.name || "?"}
+                      </span>
                       <span style={styles.sessionResult}>
                         {l.weight_kg ? l.weight_kg + "kg " : "BW "}{l.sets}×{l.reps}
                         {l.notes ? <span style={styles.sessionNote}> · {l.notes}</span> : null}
@@ -1010,6 +1038,31 @@ PRAVILA:
 
       </div>
 
+      {/* DNEVNIK MODAL */}
+      {dnevnikModal && (
+        <div style={styles.modalOverlay} onClick={() => setDnevnikModal(null)}>
+          <div style={styles.modalSheet} onClick={e => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <span style={styles.modalTitle}>{dnevnikModal.name}</span>
+              <button style={styles.modalClose} onClick={() => setDnevnikModal(null)}>✕</button>
+            </div>
+            {dnevnikModal.logs.length === 0 ? (
+              <p style={styles.empty}>Nema logova za ovu vježbu.</p>
+            ) : (
+              dnevnikModal.logs.map((l, i) => (
+                <div key={i} style={styles.modalRow}>
+                  <span style={styles.modalDate}>{fmtDayFull(l.logged_at.split("T")[0])}</span>
+                  <span style={styles.modalResult}>
+                    {l.weight_kg ? l.weight_kg + "kg " : "BW "}{l.sets}×{l.reps}
+                    {l.notes ? <span style={styles.sessionNote}> · {l.notes}</span> : null}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
       {/* TAB NAV */}
       <div style={styles.tabNav}>
         {[
@@ -1144,6 +1197,16 @@ const styles = {
   rangeBtn: { background: "none", border: `1px solid ${C.border}`, color: C.sub, borderRadius: 6, padding: "4px 8px", fontSize: 11, fontWeight: 600, cursor: "pointer" },
   rangeBtnActive: { background: C.accent, border: `1px solid ${C.accent}`, color: "#fff" },
   weightSummary: { color: C.sub, fontSize: 13, margin: "8px 0 0", textAlign: "center" },
+
+  // MODAL
+  modalOverlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 100, display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: 60 },
+  modalSheet: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 20, width: "100%", maxWidth: 480, maxHeight: "65vh", overflowY: "auto", padding: "20px 16px 24px" },
+  modalHeader: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
+  modalTitle: { color: C.text, fontSize: 17, fontWeight: 800 },
+  modalClose: { background: "none", border: "none", color: C.sub, fontSize: 18, cursor: "pointer", padding: 4 },
+  modalRow: { display: "flex", alignItems: "baseline", justifyContent: "space-between", padding: "10px 0", borderBottom: `1px solid ${C.border}` },
+  modalDate: { color: C.sub, fontSize: 13 },
+  modalResult: { color: C.text, fontSize: 14, fontWeight: 700 },
 
   // ADD EXERCISE BUTTON
   addExBtn: { width: "100%", background: C.surface, border: `1px dashed ${C.border}`, borderRadius: 12, padding: "12px", color: C.sub, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", textAlign: "center", transition: "border-color 0.15s" },
