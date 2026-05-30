@@ -248,10 +248,12 @@ export default function App() {
   const [selectedExercise, setSelectedExercise] = useState(null);
   const [napredakRange, setNapredakRange] = useState(30);
   const [showExForm, setShowExForm] = useState(false);
+  const [editingExercise, setEditingExercise] = useState(null); // exercise being edited
   const [dnevnikModal, setDnevnikModal] = useState(null); // { name, logs }
+  const [dayModal, setDayModal] = useState(null); // { date, logs }
 
   // forms
-  const [exForm, setExForm] = useState({ name: "", muscle_group: "Ostalo", goal: "", notes: "" });
+  const [exForm, setExForm] = useState({ name: "", muscle_group: "Ostalo", baseline: "", goal: "", notes: "" });
   const [logForm, setLogForm] = useState({ exercise_id: "", weight_kg: "", sets: "", reps: "", notes: "" });
   const [wtForm, setWtForm] = useState({ weight_kg: "" });
 
@@ -300,7 +302,7 @@ export default function App() {
   // ── buildContext ───────────────────────────────────────────────────────────
   const buildContext = useCallback(() => {
     const exSummary = exercises.map(e =>
-      `${e.name}${e.muscle_group ? ` [${e.muscle_group}]` : ""}${e.goal ? ` | Cilj: ${e.goal}` : ""}`
+      `${e.name}${e.muscle_group ? ` [${e.muscle_group}]` : ""}${e.baseline ? ` | Početak: ${e.baseline}` : ""}${e.goal ? ` | Cilj: ${e.goal}` : ""}`
     ).join("\n");
 
     const logSummary = workoutLogs.slice(0, 20).map(l =>
@@ -498,17 +500,26 @@ PRAVILA:
   };
 
   // ── Exercise handlers ──────────────────────────────────────────────────────
-  const addExercise = async () => {
+  const saveExercise = async () => {
     if (!sb || !exForm.name.trim()) return;
+    const data = {
+      name: exForm.name.trim(),
+      muscle_group: exForm.muscle_group || null,
+      baseline: exForm.baseline.trim() || null,
+      goal: exForm.goal.trim() || null,
+      notes: exForm.notes.trim() || null,
+    };
     try {
-      await sb.from("exercises").insert({
-        name: exForm.name.trim(),
-        muscle_group: exForm.muscle_group || null,
-        goal: exForm.goal.trim() || null,
-        notes: exForm.notes.trim() || null,
-      });
-      setExForm({ name: "", muscle_group: "Ostalo", goal: "", notes: "" });
-      flash("✓ Vježba dodana");
+      if (editingExercise) {
+        await sb.from("exercises").eq("id", editingExercise.id).update(data);
+        setEditingExercise(null);
+        flash("✓ Vježba ažurirana");
+      } else {
+        await sb.from("exercises").insert(data);
+        flash("✓ Vježba dodana");
+      }
+      setExForm({ name: "", muscle_group: "Ostalo", baseline: "", goal: "", notes: "" });
+      setShowExForm(false);
       await loadAll();
     } catch (e) {
       setError("Greška: " + e.message);
@@ -749,13 +760,22 @@ PRAVILA:
                     <option key={g} value={g}>{g}</option>
                   ))}
                 </select>
+                <input style={styles.fi} placeholder="Početno stanje (npr. 60kg 4×6)" value={exForm.baseline}
+                  onChange={e => setExForm({ ...exForm, baseline: e.target.value })} />
                 <input style={styles.fi} placeholder="Cilj (npr. 120kg 4×8)" value={exForm.goal}
                   onChange={e => setExForm({ ...exForm, goal: e.target.value })} />
                 <input style={styles.fi} placeholder="Napomena (opcionalno)" value={exForm.notes}
                   onChange={e => setExForm({ ...exForm, notes: e.target.value })} />
-                <button style={styles.logBtn} onClick={() => { addExercise(); setShowExForm(false); }}>
-                  Dodaj u biblioteku
+                <button style={styles.logBtn} onClick={saveExercise}>
+                  {editingExercise ? "Spremi izmjene" : "Dodaj u biblioteku"}
                 </button>
+                {editingExercise && (
+                  <button style={{ ...styles.logBtn, background: C.border, marginTop: 6 }} onClick={() => {
+                    setEditingExercise(null);
+                    setExForm({ name: "", muscle_group: "Ostalo", baseline: "", goal: "", notes: "" });
+                    setShowExForm(false);
+                  }}>Odustani</button>
+                )}
               </div>
             )}
 
@@ -778,7 +798,15 @@ PRAVILA:
                           </span>
                         )}
                       </div>
-                      <button style={styles.deleteBtn} onClick={() => deleteExercise(ex.id)}>✕</button>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <button style={styles.deleteBtn} onClick={() => {
+                          setEditingExercise(ex);
+                          setExForm({ name: ex.name, muscle_group: ex.muscle_group || "Ostalo", baseline: ex.baseline || "", goal: ex.goal || "", notes: ex.notes || "" });
+                          setShowExForm(true);
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }}>✏️</button>
+                        <button style={styles.deleteBtn} onClick={() => deleteExercise(ex.id)}>✕</button>
+                      </div>
                     </div>
                   );
                 })}
@@ -896,39 +924,42 @@ PRAVILA:
                 {exercises.map(ex => <option key={ex.id} value={ex.id}>{ex.name}</option>)}
               </select>
 
-              {selectedExercise && exLogs.length > 0 && (
+              {selectedExercise && (
                 <>
                   {/* Header */}
                   <div style={styles.progressHeader}>
                     <span style={styles.progressTitle}>{selectedExercise.name}</span>
-                    {goalWeight && <span style={styles.progressPct}>{progressPct}% do cilja</span>}
+                    {goalWeight && exLogs.length > 0 && <span style={styles.progressPct}>{progressPct}% do cilja</span>}
                   </div>
 
-                  {/* Progress bar */}
-                  {goalWeight && (
+                  {/* Progress bar — samo ako ima logova i cilj */}
+                  {goalWeight && exLogs.length > 0 && (
                     <div style={styles.progressBarBg}>
                       <div style={{ ...styles.progressBarFill, width: `${progressPct}%` }} />
                     </div>
                   )}
 
-                  {/* Stats row */}
+                  {/* Stats row — uvijek vidljivo */}
                   <div style={styles.statsRow}>
                     <div style={styles.statBox}>
                       <span style={styles.statBoxLbl}>Početak</span>
                       <span style={styles.statBoxVal}>
-                        {firstLog?.weight_kg ? firstLog.weight_kg + "kg" : "BW"} {firstLog?.sets}×{firstLog?.reps}
+                        {selectedExercise.baseline ||
+                          (firstLog ? (firstLog.weight_kg ? firstLog.weight_kg + "kg " : "BW ") + firstLog.sets + "×" + firstLog.reps : "—")}
                       </span>
                     </div>
                     <div style={styles.statBox}>
                       <span style={styles.statBoxLbl}>Zadnji</span>
                       <span style={styles.statBoxVal}>
-                        {lastExLog?.weight_kg ? lastExLog.weight_kg + "kg" : "BW"} {lastExLog?.sets}×{lastExLog?.reps}
+                        {lastExLog
+                          ? (lastExLog.weight_kg ? lastExLog.weight_kg + "kg " : "BW ") + lastExLog.sets + "×" + lastExLog.reps
+                          : "—"}
                       </span>
                     </div>
                     <div style={styles.statBox}>
-                      <span style={styles.statBoxLbl}>PR</span>
+                      <span style={styles.statBoxLbl}>Cilj</span>
                       <span style={{ ...styles.statBoxVal, color: C.accent }}>
-                        {prLog?.weight_kg ? prLog.weight_kg + "kg" : "BW"} {prLog?.sets}×{prLog?.reps}
+                        {selectedExercise.goal || "—"}
                       </span>
                     </div>
                     {oneRM && (
@@ -939,7 +970,7 @@ PRAVILA:
                     )}
                   </div>
 
-                  {/* Chart */}
+                  {/* Chart — samo ako ima 2+ logova */}
                   {exChartData.length > 1 && (
                     <div style={{ marginTop: 12 }}>
                       <ResponsiveContainer width="100%" height={160}>
@@ -967,23 +998,34 @@ PRAVILA:
                   )}
 
                   {/* Log history */}
-                  <div style={{ marginTop: 12 }}>
-                    <p style={styles.sectionLabel}>Historija logova</p>
-                    {[...exLogs].reverse().map((l, i) => (
-                      <div key={i} style={styles.histRow}>
-                        <span style={styles.histDate}>{l.logged_at?.split("T")[0]}</span>
-                        <span style={styles.histWeight}>
-                          {l.weight_kg ? l.weight_kg + "kg" : "BW"} {l.sets}×{l.reps}
-                        </span>
-                        {l.notes && <span style={styles.histNote}>{l.notes}</span>}
-                      </div>
-                    ))}
-                  </div>
+                  {exLogs.length > 0 ? (
+                    <div style={{ marginTop: 12 }}>
+                      <p style={styles.sectionLabel}>Historija logova</p>
+                      {[...exLogs].reverse().map((l, i) => {
+                        const localDate = new Date(l.logged_at).toLocaleDateString("sv");
+                        const dayLogs = workoutLogs.filter(wl =>
+                          new Date(wl.logged_at).toLocaleDateString("sv") === localDate
+                        );
+                        return (
+                        <div key={i} style={styles.histRow}>
+                          <span
+                            style={{ ...styles.histDate, cursor: "pointer", textDecorationLine: "underline", textDecorationColor: C.border }}
+                            onClick={() => setDayModal({ date: localDate, logs: dayLogs })}
+                          >
+                            {l.logged_at?.split("T")[0]}
+                          </span>
+                          <span style={styles.histWeight}>
+                            {l.weight_kg ? l.weight_kg + "kg" : "BW"} {l.sets}×{l.reps}
+                          </span>
+                          {l.notes && <span style={styles.histNote}>{l.notes}</span>}
+                        </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p style={{ ...styles.empty, marginTop: 12 }}>Još nema logova — idi na Vježbe i logiraj trening!</p>
+                  )}
                 </>
-              )}
-
-              {selectedExercise && exLogs.length === 0 && (
-                <p style={styles.empty}>Nema logova za {selectedExercise.name}. Logiraj trening!</p>
               )}
             </div>
 
@@ -1052,6 +1094,31 @@ PRAVILA:
               dnevnikModal.logs.map((l, i) => (
                 <div key={i} style={styles.modalRow}>
                   <span style={styles.modalDate}>{fmtDayFull(l.logged_at.split("T")[0])}</span>
+                  <span style={styles.modalResult}>
+                    {l.weight_kg ? l.weight_kg + "kg " : "BW "}{l.sets}×{l.reps}
+                    {l.notes ? <span style={styles.sessionNote}> · {l.notes}</span> : null}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* DAY MODAL */}
+      {dayModal && (
+        <div style={styles.modalOverlay} onClick={() => setDayModal(null)}>
+          <div style={styles.modalSheet} onClick={e => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <span style={styles.modalTitle}>{fmtDayFull(dayModal.date)}</span>
+              <button style={styles.modalClose} onClick={() => setDayModal(null)}>✕</button>
+            </div>
+            {dayModal.logs.length === 0 ? (
+              <p style={styles.empty}>Nema logova za taj dan.</p>
+            ) : (
+              dayModal.logs.map((l, i) => (
+                <div key={i} style={styles.modalRow}>
+                  <span style={styles.modalDate}>{l.exercises?.name || "?"}</span>
                   <span style={styles.modalResult}>
                     {l.weight_kg ? l.weight_kg + "kg " : "BW "}{l.sets}×{l.reps}
                     {l.notes ? <span style={styles.sessionNote}> · {l.notes}</span> : null}
