@@ -1,5 +1,18 @@
 # FitCoach AI — Changelog
 
+## v1.4.0 — 31. 5. 2025.
+
+### Novo
+- **Session queue (Brzi log)** — dodaj više vježbi u pending listu pa spremi sve odjednom s jednim session_id; vide se u dnevniku kao isti trening
+- **Day modal** — klik na datum u Dnevniku otvara modal s cijelim danom, grupiran po sessionima ("Trening 1", "Trening 2")
+- **Edit i brisanje logova** — ✏️/✕ gumbi na svakom logu u day modalu, edit modal za izmjenu vježbe/kg/seti/reps
+
+### Popravljeno
+- **Dodaj vježbu u trening** — nova vježba dodana kroz day modal sada se sprema u isti session (ne stvara novi "Trening 2")
+- **Enter navigacija u day modalu** — kg → Seti → Reps → Spremi (isto kao u Brzi log)
+
+---
+
 ## v1.3.0 — 31. 5. 2025.
 
 ### Novo
