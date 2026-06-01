@@ -359,9 +359,11 @@ ${wtSummary || "nema podataka"}
 NAPREDAK PO VJEŽBAMA:
 ${progressSummary || "nema podataka"}
 
-Danas je: ${now.toISOString().split("T")[0]} (${dayNames[now.getDay()]})
+TRENUTNI DATUM (uvijek točan, ignoriraj datume iz razgovora):
+${now.toISOString().split("T")[0]} — ${dayNames[now.getDay()]}
 
 PRAVILA:
+- Datum iz ovog system prompta je uvijek ispravan — nikad ne koristi datume koji se spominju u razgovoru
 - Kad korisnik logira trening → pohvali i usporedi s prošlim logom
 - Ako nema prethodnog loga → postavi kao baseline
 - Ako kilaza pada → komentiraj i predloži akciju
@@ -384,7 +386,12 @@ PRAVILA:
     }
 
     try {
-      let apiMessages = newMessages.slice(-50).map(m => ({ role: m.role, content: m.content }));
+      const nowStr = new Date().toLocaleDateString("hr-HR", { weekday: "long", day: "numeric", month: "numeric", year: "numeric" });
+      let apiMessages = [
+        { role: "user", content: `[Automatski podsjetnik] Danas je ${nowStr}.` },
+        { role: "assistant", content: "Razumijem, koristim taj datum." },
+        ...newMessages.slice(-50).map(m => ({ role: m.role, content: m.content })),
+      ];
       let finalReply = "";
       let currentExercises = exercises; // local copy for tool loop
 
