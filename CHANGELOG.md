@@ -1,5 +1,17 @@
 # FitCoach AI — Changelog
 
+## v1.6.0 — 1. 6. 2025.
+
+### Novo
+- **Učitaj još u Dnevniku** — gumb na dnu učitava starijih 21 dan; prikazuje se samo ako ima starijih logova
+- **Potvrda brisanja loga** — stisak ✕ na logu u day modalu prikazuje inline "Obriši / Ne" umjesto instant brisanja
+
+### Popravljeno
+- **Stats bar — Treninga/tjedan** — broji unikatne sessione (session_id) u zadnjih 7 dana, ne dane; 2 treninga isti dan = 2
+- **Coach datum** — uvijek koristi točan datum iz system prompta, ignorirar stare datume iz chat historije
+
+---
+
 ## v1.5.1 — 1. 6. 2025.
 
 ### Popravljeno

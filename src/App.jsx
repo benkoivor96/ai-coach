@@ -253,6 +253,8 @@ export default function App() {
   const [dayModal, setDayModal] = useState(null); // { date, logs }
   const [editLogModal, setEditLogModal] = useState(null); // { log } — edit existing workout_log
   const [addToDaySession, setAddToDaySession] = useState(null); // session_id | "new" | null
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null); // log id pending delete confirm
+  const [dnevnikDays, setDnevnikDays] = useState(21); // how many days to show in Dnevnik
 
   // forms
   const [exForm, setExForm] = useState({ name: "", muscle_group: "Ostalo", baseline: "", goal: "", notes: "" });
@@ -687,7 +689,7 @@ PRAVILA:
 
   const weekAgo = msAgo(7);
   const weekLogs = workoutLogs.filter(l => new Date(l.logged_at) >= weekAgo);
-  const weekDays = new Set(weekLogs.map(l => l.logged_at?.split("T")[0])).size;
+  const weekDays = new Set(weekLogs.map(l => l.session_id || l.id)).size;
 
   const lastLogDate = workoutLogs[0]?.logged_at;
   const daysSinceLast = lastLogDate
@@ -740,7 +742,7 @@ PRAVILA:
 
   // Workouts grouped by local date (last 21 days)
   const workoutsByDay = workoutLogs
-    .filter(l => new Date(l.logged_at) >= msAgo(21))
+    .filter(l => new Date(l.logged_at) >= msAgo(dnevnikDays))
     .reduce((acc, l) => {
       const date = new Date(l.logged_at).toLocaleDateString("sv"); // local YYYY-MM-DD
       if (!acc[date]) acc[date] = [];
@@ -1012,6 +1014,12 @@ PRAVILA:
                 </div>
               );
             })}
+              {workoutLogs.some(l => new Date(l.logged_at) < msAgo(dnevnikDays)) && (
+                <button style={{ ...styles.addExBtn, marginTop: 4 }}
+                  onClick={() => setDnevnikDays(d => d + 21)}>
+                  Učitaj još 21 dan
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -1298,10 +1306,21 @@ PRAVILA:
                                 setEditLogModal({ log: l });
                                 setEditLogForm({ exercise_id: l.exercise_id, weight_kg: l.weight_kg || "", sets: l.sets || "", reps: l.reps || "", notes: l.notes || "" });
                               }}>✏️</button>
-                              <button style={{ ...styles.deleteBtn, fontSize: 13 }} onClick={async () => {
-                                await deleteLog(l.id);
-                                setDayModal(d => ({ ...d, logs: d.logs.filter(x => x.id !== l.id) }));
-                              }}>✕</button>
+                              {confirmDeleteId === l.id ? (
+                                <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                                  <button style={{ ...styles.logBtn, padding: "3px 8px", fontSize: 11, borderRadius: 6, background: C.red }}
+                                    onClick={async () => {
+                                      await deleteLog(l.id);
+                                      setDayModal(d => ({ ...d, logs: d.logs.filter(x => x.id !== l.id) }));
+                                      setConfirmDeleteId(null);
+                                    }}>Obriši</button>
+                                  <button style={{ ...styles.logBtn, padding: "3px 8px", fontSize: 11, borderRadius: 6, background: C.border }}
+                                    onClick={() => setConfirmDeleteId(null)}>Ne</button>
+                                </div>
+                              ) : (
+                                <button style={{ ...styles.deleteBtn, fontSize: 13 }}
+                                  onClick={() => setConfirmDeleteId(l.id)}>✕</button>
+                              )}
                             </div>
                           ))}
                           {addToDaySession === sid
