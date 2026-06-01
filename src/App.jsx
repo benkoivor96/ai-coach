@@ -252,7 +252,7 @@ export default function App() {
   const [dnevnikModal, setDnevnikModal] = useState(null); // { name, logs }
   const [dayModal, setDayModal] = useState(null); // { date, logs }
   const [editLogModal, setEditLogModal] = useState(null); // { log } — edit existing workout_log
-  const [addToDayDate, setAddToDayDate] = useState(null); // date string when adding to existing day
+  const [addToDaySession, setAddToDaySession] = useState(null); // session_id | "new" | null
 
   // forms
   const [exForm, setExForm] = useState({ name: "", muscle_group: "Ostalo", baseline: "", goal: "", notes: "" });
@@ -278,6 +278,13 @@ export default function App() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Scroll to bottom when switching to chat tab
+  useEffect(() => {
+    if (tab === "chat") {
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "instant" }), 50);
+    }
+  }, [tab]);
 
   const flash = (msg) => { setSaveMsg(msg); setTimeout(() => setSaveMsg(""), 2500); };
 
@@ -501,9 +508,9 @@ PRAVILA:
 
     } catch (e) {
       setMessages([...newMessages, { role: "assistant", content: "⚠️ Greška: " + e.message }]);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   // ── Exercise handlers ──────────────────────────────────────────────────────
@@ -596,9 +603,9 @@ PRAVILA:
   };
 
   // ── Dodaj vježbu u postojeći dan ──────────────────────────────────────────
-  const addToDay = async (date) => {
+  const addToDay = async (date, sessionId) => {
     if (!sb || !logForm.exercise_id || !logForm.sets || !logForm.reps) return;
-    const sessionId = dayModal?.logs?.find(l => l.session_id)?.session_id || crypto.randomUUID();
+    const sid = (!sessionId || sessionId === "new") ? crypto.randomUUID() : sessionId;
     try {
       await sb.from("workout_logs").insert({
         exercise_id: logForm.exercise_id,
@@ -606,15 +613,19 @@ PRAVILA:
         sets: parseInt(logForm.sets),
         reps: parseInt(logForm.reps),
         notes: logForm.notes.trim() || null,
-        session_id: sessionId,
+        session_id: sid,
         logged_at: date + "T12:00:00.000Z",
       });
+      // Keep form open for same session, just reset fields
       setLogForm({ exercise_id: "", weight_kg: "", sets: "", reps: "", notes: "" });
-      setAddToDayDate(null);
-      await loadAll();
-      // Refresh day modal
-      const updated = workoutLogs.filter(l => new Date(l.logged_at).toLocaleDateString("sv") === date);
+      setAddToDaySession(sid); // stay on same session
+      // Fetch fresh logs directly (avoids stale closure)
+      const fresh = await sb.from("workout_logs")
+        .order("logged_at", { ascending: true })
+        .select("*, exercises(name, muscle_group, goal)");
+      const updated = (fresh.data || []).filter(l => new Date(l.logged_at).toLocaleDateString("sv") === date);
       setDayModal(d => d ? { ...d, logs: updated } : null);
+      await loadAll();
     } catch (e) {
       setError("Greška: " + e.message);
     }
@@ -910,66 +921,6 @@ PRAVILA:
               <p style={styles.empty}>Nema vježbi. Dodaj prvu gore. ☝️</p>
             )}
 
-            {/* Quick workout log */}
-            <div style={styles.card}>
-              <h3 style={styles.cardTitle}>⚡ Brzi log treninga</h3>
-
-              {/* Queue prikaz */}
-              {sessionQueue.length > 0 && (
-                <div style={styles.queueList}>
-                  {sessionQueue.map((item, i) => (
-                    <div key={i} style={styles.queueRow}>
-                      <span style={styles.queueEx}>{item.exercise_name}</span>
-                      <span style={styles.queueResult}>
-                        {item.weight_kg ? item.weight_kg + "kg " : "BW "}{item.sets}×{item.reps}
-                      </span>
-                      <button style={styles.deleteBtn} onClick={() =>
-                        setSessionQueue(q => q.filter((_, j) => j !== i))}>✕</button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <select style={styles.fi} value={logForm.exercise_id}
-                onChange={e => setLogForm({ ...logForm, exercise_id: e.target.value, weight_kg: "", sets: "", reps: "" })}>
-                <option value="">— odaberi vježbu —</option>
-                {exercises.map(ex => (
-                  <option key={ex.id} value={ex.id}>{ex.name}</option>
-                ))}
-              </select>
-              {lastLogForSelected && (
-                <p style={styles.lastLogHint}>
-                  Zadnji put: {lastLogForSelected.weight_kg ? lastLogForSelected.weight_kg + "kg " : "BW "}
-                  {lastLogForSelected.sets}×{lastLogForSelected.reps} ({fmtDate(lastLogForSelected.logged_at)})
-                </p>
-              )}
-              <div style={styles.row3}>
-                <input ref={logKgRef} style={styles.fi} placeholder="kg" type="number" step="0.5" value={logForm.weight_kg}
-                  onChange={e => setLogForm({ ...logForm, weight_kg: e.target.value })}
-                  onKeyDown={e => e.key === "Enter" && logSetiRef.current?.focus()} />
-                <input ref={logSetiRef} style={styles.fi} placeholder="Seti" type="number" value={logForm.sets}
-                  onChange={e => setLogForm({ ...logForm, sets: e.target.value })}
-                  onKeyDown={e => e.key === "Enter" && logRepsRef.current?.focus()} />
-                <input ref={logRepsRef} style={styles.fi} placeholder="Reps" type="number" value={logForm.reps}
-                  onChange={e => setLogForm({ ...logForm, reps: e.target.value })}
-                  onKeyDown={e => e.key === "Enter" && addToQueue()} />
-              </div>
-              <input style={styles.fi} placeholder="Napomena (opcionalno)" value={logForm.notes}
-                onChange={e => setLogForm({ ...logForm, notes: e.target.value })} />
-              <div style={{ display: "flex", gap: 8 }}>
-                <button style={{ ...styles.logBtn, background: C.surface, border: `1px solid ${C.border}`, flex: 1 }}
-                  onClick={addToQueue}
-                  disabled={!logForm.exercise_id || !logForm.sets || !logForm.reps}>
-                  ＋ Dodaj vježbu
-                </button>
-                <button style={{ ...styles.logBtn, flex: 2 }}
-                  onClick={saveSession}
-                  disabled={sessionQueue.length === 0 && (!logForm.exercise_id || !logForm.sets || !logForm.reps)}>
-                  {`Spremi trening${sessionQueue.length > 0 ? ` (${sessionQueue.length + (logForm.exercise_id && logForm.sets && logForm.reps ? 1 : 0)})` : ""}`}
-                </button>
-              </div>
-            </div>
-
             {/* Weight log */}
             <div style={styles.card}>
               <h3 style={styles.cardTitle}>⚖️ Kilaza</h3>
@@ -990,6 +941,14 @@ PRAVILA:
         {/* ── TAB: DNEVNIK ────────────────────────────────────────────────── */}
         {tab === "dnevnik" && (
           <div style={styles.scrollWrap}>
+            <button style={styles.addExBtn} onClick={() => {
+              const todayDate = today();
+              const todayLogs = workoutLogs.filter(l => new Date(l.logged_at).toLocaleDateString("sv") === todayDate);
+              setDayModal({ date: todayDate, logs: todayLogs });
+              setAddToDaySession(null);
+            }}>
+              ＋ Novi unos
+            </button>
             <div style={styles.card}>
               <h3 style={styles.cardTitle}>📅 Dnevnik treninga</h3>
               {sortedDays.length === 0 && (
@@ -1154,7 +1113,7 @@ PRAVILA:
                             style={{ ...styles.histDate, cursor: "pointer", textDecorationLine: "underline", textDecorationColor: C.border }}
                             onClick={() => setDayModal({ date: localDate, logs: dayLogs })}
                           >
-                            {l.logged_at?.split("T")[0]}
+                            {fmtDayFull(l.logged_at?.split("T")[0])}
                           </span>
                           <span style={styles.histWeight}>
                             {l.weight_kg ? l.weight_kg + "kg" : "BW"} {l.sets}×{l.reps}
@@ -1249,80 +1208,120 @@ PRAVILA:
 
       {/* DAY MODAL */}
       {dayModal && (
-        <div style={styles.modalOverlay} onClick={() => { setDayModal(null); setAddToDayDate(null); }}>
+        <div style={styles.modalOverlay} onClick={() => { setDayModal(null); setAddToDaySession(null); }}>
           <div style={styles.modalSheet} onClick={e => e.stopPropagation()}>
             <div style={styles.modalHeader}>
               <span style={styles.modalTitle}>{fmtDayFull(dayModal.date)}</span>
-              <button style={styles.modalClose} onClick={() => { setDayModal(null); setAddToDayDate(null); }}>✕</button>
+              <button style={styles.modalClose} onClick={() => { setDayModal(null); setAddToDaySession(null); }}>✕</button>
             </div>
             {(() => {
               const sessionMap = {};
+              const sessionOrder = [];
               dayModal.logs.forEach(l => {
                 const key = l.session_id || `solo-${l.id}`;
-                if (!sessionMap[key]) sessionMap[key] = [];
+                if (!sessionMap[key]) { sessionMap[key] = []; sessionOrder.push(key); }
                 sessionMap[key].push(l);
               });
-              const sessions = Object.values(sessionMap);
-              return sessions.length === 0
-                ? <p style={styles.empty}>Nema logova za taj dan.</p>
-                : sessions.map((sLogs, si) => (
-                  <div key={si} style={{ marginBottom: 12 }}>
-                    {sessions.length > 1 && (
-                      <span style={styles.sessionLabel}>Trening {si + 1}</span>
-                    )}
-                    {sLogs.map((l, i) => (
-                      <div key={i} style={styles.modalRow}>
-                        <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
-                          <span style={styles.modalDate}>{l.exercises?.name || "?"}</span>
-                          {l.notes && <span style={styles.sessionNote}>{l.notes}</span>}
-                        </div>
-                        <span style={{ ...styles.modalResult, marginRight: 8 }}>
-                          {l.weight_kg ? l.weight_kg + "kg " : "BW "}{l.sets}×{l.reps}
-                        </span>
-                        <button style={styles.deleteBtn} onClick={() => {
-                          setEditLogModal({ log: l });
-                          setEditLogForm({ exercise_id: l.exercise_id, weight_kg: l.weight_kg || "", sets: l.sets || "", reps: l.reps || "", notes: l.notes || "" });
-                        }}>✏️</button>
-                        <button style={styles.deleteBtn} onClick={async () => {
-                          await deleteLog(l.id);
-                          setDayModal(d => ({ ...d, logs: d.logs.filter(x => x.id !== l.id) }));
-                        }}>✕</button>
-                      </div>
-                    ))}
-                  </div>
-                ));
-            })()}
 
-            {/* Dodaj vježbu u ovaj dan */}
-            {addToDayDate === dayModal.date ? (
-              <div style={{ marginTop: 12, borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
-                <select style={styles.fi} value={logForm.exercise_id}
-                  onChange={e => setLogForm({ ...logForm, exercise_id: e.target.value })}>
-                  <option value="">— odaberi vježbu —</option>
-                  {exercises.map(ex => <option key={ex.id} value={ex.id}>{ex.name}</option>)}
-                </select>
-                <div style={styles.row3}>
-                  <input ref={logKgRef} style={styles.fi} placeholder="kg" type="number" step="0.5" value={logForm.weight_kg}
-                    onChange={e => setLogForm({ ...logForm, weight_kg: e.target.value })}
-                    onKeyDown={e => e.key === "Enter" && logSetiRef.current?.focus()} />
-                  <input ref={logSetiRef} style={styles.fi} placeholder="Seti" type="number" value={logForm.sets}
-                    onChange={e => setLogForm({ ...logForm, sets: e.target.value })}
-                    onKeyDown={e => e.key === "Enter" && logRepsRef.current?.focus()} />
-                  <input ref={logRepsRef} style={styles.fi} placeholder="Reps" type="number" value={logForm.reps}
-                    onChange={e => setLogForm({ ...logForm, reps: e.target.value })}
-                    onKeyDown={e => e.key === "Enter" && addToDay(dayModal.date)} />
+              const addForm = (sid) => (
+                <div style={{ marginTop: 10, padding: "10px 12px", background: C.surface, borderRadius: 10, border: `1px solid ${C.border}` }}>
+                  <select style={{ ...styles.fi, marginBottom: 6 }} value={logForm.exercise_id}
+                    onChange={e => setLogForm({ ...logForm, exercise_id: e.target.value })}>
+                    <option value="">— odaberi vježbu —</option>
+                    {exercises.map(ex => <option key={ex.id} value={ex.id}>{ex.name}</option>)}
+                  </select>
+                  <div style={styles.row3}>
+                    <input ref={logKgRef} style={styles.fi} placeholder="kg" type="number" step="0.5"
+                      value={logForm.weight_kg} onChange={e => setLogForm({ ...logForm, weight_kg: e.target.value })}
+                      onKeyDown={e => e.key === "Enter" && logSetiRef.current?.focus()} />
+                    <input ref={logSetiRef} style={styles.fi} placeholder="Seti" type="number"
+                      value={logForm.sets} onChange={e => setLogForm({ ...logForm, sets: e.target.value })}
+                      onKeyDown={e => e.key === "Enter" && logRepsRef.current?.focus()} />
+                    <input ref={logRepsRef} style={styles.fi} placeholder="Reps" type="number"
+                      value={logForm.reps} onChange={e => setLogForm({ ...logForm, reps: e.target.value })}
+                      onKeyDown={e => e.key === "Enter" && addToDay(dayModal.date, sid)} />
+                  </div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                    <button style={{ ...styles.logBtn, flex: 1 }}
+                      onClick={() => addToDay(dayModal.date, sid)}
+                      disabled={!logForm.exercise_id || !logForm.sets || !logForm.reps}>Spremi</button>
+                    <button style={{ ...styles.logBtn, flex: 1, background: C.border }}
+                      onClick={() => { setAddToDaySession(null); setLogForm({ exercise_id: "", weight_kg: "", sets: "", reps: "", notes: "" }); }}>Odustani</button>
+                  </div>
                 </div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button style={{ ...styles.logBtn, flex: 1 }} onClick={() => addToDay(dayModal.date)}
-                    disabled={!logForm.exercise_id || !logForm.sets || !logForm.reps}>Spremi</button>
-                  <button style={{ ...styles.logBtn, flex: 1, background: C.border }} onClick={() => setAddToDayDate(null)}>Odustani</button>
-                </div>
-              </div>
-            ) : (
-              <button style={{ ...styles.addExBtn, marginTop: 12 }} onClick={() => setAddToDayDate(dayModal.date)}>
-                ＋ Dodaj vježbu ovom treningu
-              </button>
-            )}
+              );
+
+              return sessionOrder.length === 0
+                ? (
+                  <>
+                    {addToDaySession === "new"
+                      ? addForm("new")
+                      : <p style={styles.empty}>Nema logova za taj dan.</p>
+                    }
+                    {addToDaySession === null && (
+                      <button style={{ ...styles.addExBtn, marginTop: 8 }}
+                        onClick={() => { setAddToDaySession("new"); setLogForm({ exercise_id: "", weight_kg: "", sets: "", reps: "", notes: "" }); }}>
+                        ＋ Novi trening ovaj dan
+                      </button>
+                    )}
+                  </>
+                )
+                : (
+                  <>
+                    {sessionOrder.map((sid, si) => {
+                      const sLogs = sessionMap[sid];
+                      return (
+                        <div key={sid} style={{ marginBottom: 12, background: C.card, borderRadius: 12, padding: "10px 12px", border: `1px solid #3a3a50` }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: C.sub, textTransform: "uppercase" }}>
+                              Trening {si + 1}
+                            </span>
+                            <span style={{ fontSize: 11, color: C.sub }}>{sLogs.length} {sLogs.length === 1 ? "vježba" : "vježbe"}</span>
+                          </div>
+                          {sLogs.map((l, i) => (
+                            <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, paddingBottom: 6, marginBottom: i < sLogs.length - 1 ? 6 : 0, borderBottom: i < sLogs.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <span style={{ fontSize: 14, fontWeight: 600, color: C.text, display: "block" }}>{l.exercises?.name || "?"}</span>
+                                {l.notes && <span style={{ fontSize: 11, color: C.sub }}>{l.notes}</span>}
+                              </div>
+                              <span style={{ fontSize: 13, color: C.accent, fontWeight: 700, whiteSpace: "nowrap" }}>
+                                {l.weight_kg ? l.weight_kg + "kg" : "BW"} {l.sets}×{l.reps}
+                              </span>
+                              <button style={{ ...styles.deleteBtn, fontSize: 13 }} onClick={() => {
+                                setEditLogModal({ log: l });
+                                setEditLogForm({ exercise_id: l.exercise_id, weight_kg: l.weight_kg || "", sets: l.sets || "", reps: l.reps || "", notes: l.notes || "" });
+                              }}>✏️</button>
+                              <button style={{ ...styles.deleteBtn, fontSize: 13 }} onClick={async () => {
+                                await deleteLog(l.id);
+                                setDayModal(d => ({ ...d, logs: d.logs.filter(x => x.id !== l.id) }));
+                              }}>✕</button>
+                            </div>
+                          ))}
+                          {addToDaySession === sid
+                            ? addForm(sid)
+                            : addToDaySession === null && (
+                              <button style={{ ...styles.addExBtn, marginTop: 8, fontSize: 12, padding: "6px 10px" }}
+                                onClick={() => { setAddToDaySession(sid); setLogForm({ exercise_id: "", weight_kg: "", sets: "", reps: "", notes: "" }); }}>
+                                ＋ Dodaj vježbu
+                              </button>
+                            )
+                          }
+                        </div>
+                      );
+                    })}
+                    {/* Novi trening */}
+                    {addToDaySession === "new"
+                      ? addForm("new")
+                      : addToDaySession === null && (
+                        <button style={{ ...styles.addExBtn, marginTop: 4, width: "100%", textAlign: "center" }}
+                          onClick={() => { setAddToDaySession("new"); setLogForm({ exercise_id: "", weight_kg: "", sets: "", reps: "", notes: "" }); }}>
+                          ＋ Novi trening ovaj dan
+                        </button>
+                      )
+                    }
+                  </>
+                );
+            })()}
           </div>
         </div>
       )}
@@ -1432,7 +1431,7 @@ const styles = {
 
   // CHAT
   chatWrap: { flex: 1, display: "flex", flexDirection: "column", minHeight: 0 },
-  chatMessages: { flex: 1, overflowY: "auto", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10 },
+  chatMessages: { flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10 },
   msg: { display: "flex", alignItems: "flex-end", gap: 6 },
   msgUser: { flexDirection: "row-reverse" },
   msgAssistant: { flexDirection: "row" },

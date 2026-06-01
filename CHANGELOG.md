@@ -1,5 +1,23 @@
 # FitCoach AI — Changelog
 
+## v1.5.0 — 1. 6. 2025.
+
+### Novo
+- **Novi unos u Dnevniku** — dashed gumb iznad dnevnika otvara day modal za danas (bez switcha na drugi tab)
+- **Dodaj/uredi/briši vježbe po sessionu** — svaki session u day modalu ima vlastiti "＋ Dodaj vježbu" gumb koji dodaje u taj session; na dnu "＋ Novi trening ovaj dan" za novi session
+- **Višestruki unos** — forma ostaje otvorena nakon dodavanja vježbe, resetiraju se samo polja
+
+### Popravljeno
+- **Touch scroll u chatu** — `WebkitOverflowScrolling: touch` na chat containeru
+- **Zaglavljen loading** — `setLoading(false)` premješten u `finally` blok
+- **Scroll na vrh pri ulasku u Coach** — `useEffect` na promjenu taba scrolls na dno
+- **Datumi u Historiji logova** — prikazuju se kao "Subota, 31. 5." umjesto "2026-05-31"
+- **Day modal refresh** — modal se ažurira odmah nakon dodavanja vježbe (direktni fetch, ne stale state)
+- **Vidljivost TRENING 1/2 labela** — `C.muted` (undefined→crno) zamijenjen s `C.sub`
+- **Brzi log maknut iz Vježbe taba** — logiranje treninga sada samo kroz Dnevnik
+
+---
+
 ## v1.4.0 — 31. 5. 2025.
 
 ### Novo
