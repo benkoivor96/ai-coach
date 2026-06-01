@@ -1,5 +1,12 @@
 # FitCoach AI — Changelog
 
+## v1.5.1 — 1. 6. 2025.
+
+### Popravljeno
+- **Coach datum** — coach sada uvijek zna točan dan; injected date podsjetnik na svaki API poziv + jača instrukcija u system promptu da ignorira datume iz chat historije
+
+---
+
 ## v1.5.0 — 1. 6. 2025.
 
 ### Novo
