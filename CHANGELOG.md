@@ -1,5 +1,16 @@
 # FitCoach AI — Changelog
 
+## v1.7.0 — 1. 6. 2025.
+
+### Novo
+- **Coach tool: save_exercise_goal** — kad kažeš "cilj mi je 4x15 HSPU", coach automatski spremi cilj (i baseline) direktno u biblioteku vježbi; kreira vježbu ako ne postoji
+- **Promjena datuma u day modalu** — 📅 ikona pored naziva dana otvara date picker za odabir drugog datuma
+
+### Popravljeno
+- **Coach system prompt** — coach više ne govori o vježbama koje nisu u biblioteci; eksplicitna instrukcija za korištenje save_exercise_goal
+
+---
+
 ## v1.6.0 — 1. 6. 2025.
 
 ### Novo

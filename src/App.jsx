@@ -153,6 +153,19 @@ const AI_TOOLS = [
       required: ["weight_kg"],
     },
   },
+  {
+    name: "save_exercise_goal",
+    description: "Spremi ili ažuriraj cilj i/ili početno stanje za vježbu. Pozovi kad korisnik spominje cilj za neku vježbu (npr. 'cilj mi je 4x15 HSPU') ili početno stanje. Ako vježba ne postoji, kreiraj je.",
+    input_schema: {
+      type: "object",
+      properties: {
+        exercise_name: { type: "string", description: "Naziv vježbe" },
+        goal: { type: "string", description: "Cilj u slobodnom obliku, npr. '4x15' ili '100kg 4x8'" },
+        baseline: { type: "string", description: "Početno stanje, opcionalno, npr. '4x8' ili '60kg 3x5'" },
+      },
+      required: ["exercise_name", "goal"],
+    },
+  },
 ];
 
 // ─── SETUP SCREEN ────────────────────────────────────────────────────────────
@@ -267,6 +280,7 @@ export default function App() {
   const logKgRef = useRef(null);
   const logSetiRef = useRef(null);
   const logRepsRef = useRef(null);
+  const datePickerRef = useRef(null);
 
   useEffect(() => {
     if (creds) setSb(createSupabase(creds.sbUrl, creds.sbKey));
@@ -367,9 +381,11 @@ ${now.toISOString().split("T")[0]} — ${dayNames[now.getDay()]}
 PRAVILA:
 - Datum iz ovog system prompta je uvijek ispravan — nikad ne koristi datume koji se spominju u razgovoru
 - Kad korisnik logira trening → pohvali i usporedi s prošlim logom
+- Kad korisnik spominje cilj za vježbu (npr. "cilj mi je 4x15 HSPU") → odmah pozovi save_exercise_goal
 - Ako nema prethodnog loga → postavi kao baseline
 - Ako kilaza pada → komentiraj i predloži akciju
 - Uvijek znaš gdje je korisnik u odnosu na cilj
+- Govori samo o vježbama koje su u biblioteci korisnika — ne izmišljaj planove s vježbama kojih nema
 - Ako nema vježbi u biblioteci → predloži dodavanje`;
   }, [exercises, workoutLogs, weights]);
 
@@ -480,6 +496,29 @@ PRAVILA:
                 result = `Saved weight: ${tc.input.weight_kg}kg`;
               } else {
                 result = "Weight already logged today — skipped";
+              }
+
+            } else if (tc.name === "save_exercise_goal") {
+              const { exercise_name, goal, baseline } = tc.input;
+              let ex = currentExercises.find(e =>
+                e.name.toLowerCase() === exercise_name.toLowerCase()
+              );
+              if (!ex) {
+                // Kreiraj vježbu ako ne postoji
+                const ins = await sb.from("exercises").insert({ name: exercise_name, goal, baseline: baseline || null });
+                const updated = await sb.from("exercises").order("name").select();
+                currentExercises = updated.data || [];
+                setExercises(currentExercises);
+                result = `Created exercise "${exercise_name}" with goal: ${goal}`;
+              } else {
+                // Update postojeće
+                const updateData = { goal };
+                if (baseline) updateData.baseline = baseline;
+                await sb.from("exercises").eq("id", ex.id).update(updateData);
+                const updated = await sb.from("exercises").order("name").select();
+                currentExercises = updated.data || [];
+                setExercises(currentExercises);
+                result = `Updated goal for "${exercise_name}": ${goal}`;
               }
             }
           } catch (e) {
@@ -1226,7 +1265,25 @@ PRAVILA:
         <div style={styles.modalOverlay} onClick={() => { setDayModal(null); setAddToDaySession(null); }}>
           <div style={styles.modalSheet} onClick={e => e.stopPropagation()}>
             <div style={styles.modalHeader}>
-              <span style={styles.modalTitle}>{fmtDayFull(dayModal.date)}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={styles.modalTitle}>{fmtDayFull(dayModal.date)}</span>
+                <button style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, opacity: 0.6, padding: 0, lineHeight: 1 }}
+                  onClick={() => datePickerRef.current?.showPicker()}>📅</button>
+                <input ref={datePickerRef} type="date" value={dayModal.date}
+                  style={{ position: "absolute", opacity: 0, width: 0, height: 0 }}
+                  onChange={async e => {
+                    const newDate = e.target.value;
+                    if (!newDate) return;
+                    const fresh = await sb.from("workout_logs")
+                      .order("logged_at", { ascending: true })
+                      .select("*, exercises(name, muscle_group, goal)");
+                    const logs = (fresh.data || []).filter(l =>
+                      new Date(l.logged_at).toLocaleDateString("sv") === newDate
+                    );
+                    setDayModal({ date: newDate, logs });
+                    setAddToDaySession(null);
+                  }} />
+              </div>
               <button style={styles.modalClose} onClick={() => { setDayModal(null); setAddToDaySession(null); }}>✕</button>
             </div>
             {(() => {
